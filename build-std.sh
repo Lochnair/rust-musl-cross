@@ -1,64 +1,57 @@
 #!/bin/bash
 set -e
-if [[ "$TOOLCHAIN" = "nightly" && ("$TARGET" =~ ^s390x || "$TARGET" = "powerpc64-unknown-linux-musl" || "$TARGET" =~ ^mips) ]]
-then
-  export CARGO_NET_GIT_FETCH_WITH_CLI=true
-  export CARGO_UNSTABLE_SPARSE_REGISTRY=true
 
-  HOST=$(rustc -Vv | grep 'host:' | awk '{print $2}')
-  # patch unwind for s390x
-  if [[ "$TARGET" = "s390x-unknown-linux-musl" ]]
-  then
-    cd "/root/.rustup/toolchains/$TOOLCHAIN-$HOST/lib/rustlib/src/rust"
-	patch -p1 < /tmp/s390x-unwind.patch
-	cd -
-  fi
+# Build a custom std sysroot for tier3 targets that don't have prebuilt
+# std libraries available via `rustup target add`.
+#
+# This is only needed when TOOLCHAIN=nightly and the target is tier3
+# (e.g. s390x-unknown-linux-musl). For tier1/2 targets, `rustup target add`
+# provides prebuilt std and this script is a no-op.
 
-  # Build and install the sysroot builder tool
-  cd /tmp
-  cp -r /home/rust/src/build-sysroot .
-  cd build-sysroot
-  cargo build --release
-  
-  # Build the sysroot using rustc-build-sysroot
-  # Find the GCC library directory dynamically (using the highest version)
-  if [ -d "/usr/local/musl/lib/gcc/$TARGET" ]; then
-    GCC_LIB_DIR=$(find /usr/local/musl/lib/gcc/"$TARGET" -maxdepth 1 -type d -name "[0-9]*" | sort -V | tail -n 1)
-  else
-    GCC_LIB_DIR=""
-  fi
-  
-  if [ -z "$GCC_LIB_DIR" ]; then
-    echo "Warning: GCC library directory not found, using default RUSTFLAGS"
-    export RUSTFLAGS="-L/usr/local/musl/$TARGET/lib"
-  else
-    echo "Found GCC library directory: $GCC_LIB_DIR"
-    export RUSTFLAGS="-L/usr/local/musl/$TARGET/lib -L$GCC_LIB_DIR"
-  fi
-  ./target/release/build-sysroot "$TARGET"
-  
-  # Copy self-contained objects
-  mkdir -p "/root/.rustup/toolchains/$TOOLCHAIN-$HOST/lib/rustlib/$TARGET/lib/self-contained"
-  cp /usr/local/musl/"$TARGET"/lib/*.o "/root/.rustup/toolchains/$TOOLCHAIN-$HOST/lib/rustlib/$TARGET/lib/self-contained/"
-  # Copy GCC C runtime objects if they exist
-  if [ -n "$GCC_LIB_DIR" ]; then
-    if ls "$GCC_LIB_DIR"/c*.o 1> /dev/null 2>&1; then
-      cp "$GCC_LIB_DIR"/c*.o "/root/.rustup/toolchains/$TOOLCHAIN-$HOST/lib/rustlib/$TARGET/lib/self-contained/"
-    else
-      echo "Warning: GCC C runtime objects not found in $GCC_LIB_DIR, skipping"
-    fi
-    # For MIPS targets: create libunwind.a from libgcc.a since musl doesn't ship libunwind
-    # The unwind symbols are provided by libgcc on these platforms
-    if [[ "$TARGET" =~ ^mips ]] && [ -f "$GCC_LIB_DIR/libgcc.a" ]; then
-      echo "Creating libunwind.a from libgcc.a for MIPS target"
-      cp "$GCC_LIB_DIR/libgcc.a" "/root/.rustup/toolchains/$TOOLCHAIN-$HOST/lib/rustlib/$TARGET/lib/self-contained/libunwind.a"
-    fi
-  else
-    echo "Warning: GCC library directory not found, skipping C runtime objects"
-  fi
-  
-  # Cleanup
-  cd /tmp
-  rm -rf build-sysroot /root/.cargo/registry /root/.cargo/git
+# Only run for nightly toolchain on tier3 targets (those where rustup target add failed)
+HOST=$(rustc -Vv | grep 'host:' | awk '{print $2}')
+SYSROOT=$(rustc --print sysroot)
 
+# Check if the target std library already exists (installed by rustup target add)
+if [ -d "${SYSROOT}/lib/rustlib/${TARGET}/lib" ] && \
+   ls "${SYSROOT}/lib/rustlib/${TARGET}/lib"/*.rlib 1> /dev/null 2>&1; then
+  echo "std library for ${TARGET} already exists, skipping build-std"
+  exit 0
 fi
+
+# Only nightly supports -Zbuild-std / rust-src
+if [ "${TOOLCHAIN}" != "nightly" ]; then
+  echo "Warning: Target ${TARGET} has no prebuilt std and toolchain is not nightly. Skipping."
+  exit 0
+fi
+
+echo "Building std sysroot for tier3 target: ${TARGET}"
+
+# Build and install the sysroot builder tool
+cd /tmp
+cp -r /home/rust/src/build-sysroot .
+cd build-sysroot
+cargo build --release
+
+# Set RUSTFLAGS to point at the sysroot libraries
+export RUSTFLAGS="-L/sysroot/usr/lib -L/sysroot/lib"
+
+./target/release/build-sysroot "${TARGET}"
+
+# Copy CRT objects from sysroot into rustlib for self-contained linking
+mkdir -p "${SYSROOT}/lib/rustlib/${TARGET}/lib/self-contained"
+
+# Copy musl CRT objects (crt1.o, crti.o, crtn.o, rcrt1.o, Scrt1.o)
+if ls /sysroot/usr/lib/crt*.o 1> /dev/null 2>&1; then
+  cp /sysroot/usr/lib/crt*.o "${SYSROOT}/lib/rustlib/${TARGET}/lib/self-contained/"
+fi
+if ls /sysroot/usr/lib/rcrt*.o 1> /dev/null 2>&1; then
+  cp /sysroot/usr/lib/rcrt*.o "${SYSROOT}/lib/rustlib/${TARGET}/lib/self-contained/"
+fi
+if ls /sysroot/usr/lib/Scrt*.o 1> /dev/null 2>&1; then
+  cp /sysroot/usr/lib/Scrt*.o "${SYSROOT}/lib/rustlib/${TARGET}/lib/self-contained/"
+fi
+
+# Cleanup
+cd /tmp
+rm -rf build-sysroot /root/.cargo/registry /root/.cargo/git

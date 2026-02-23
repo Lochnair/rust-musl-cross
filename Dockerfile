@@ -55,29 +55,20 @@ RUN mkdir -p /sysroot/etc/apk && \
     echo "https://dl-cdn.alpinelinux.org/alpine/v3.23/community" >> /sysroot/etc/apk/repositories && \
     apk --arch ${APK_ARCH} --root /sysroot --initdb --no-scripts \
         --allow-untrusted add \
-        compiler-rt \
+        gcc \
         lua5.1-dev \
         luajit-dev \
         musl-dev \
         zlib-dev \
         zlib-static && \
-    # Expose target arch's compiler-rt to the host clang/lld.
-    # lld resolves the compiler-rt path from the Rust TARGET triple (e.g.
-    # aarch64-unknown-linux-musl), but the files live under the Alpine
-    # CLANG_TARGET triple in the sysroot (e.g. aarch64-alpine-linux-musl).
-    # A symlink bridges the two: no copying, no BusyBox cp quirks.
-    RESOURCE_DIR=$(clang --print-resource-dir) && \
-    mkdir -p "${RESOURCE_DIR}/lib" && \
-    ln -sf "/sysroot${RESOURCE_DIR}/lib/${CLANG_TARGET}" \
-           "${RESOURCE_DIR}/lib/${TARGET}"
 
 # Create Clang wrapper scripts for C/C++ cross-compilation.
 # These are used as the linker by Cargo, and as CC/CXX for -sys crates.
 # --unwindlib=none: Rust provides its own unwinding via libunwind
-RUN printf '#!/bin/sh\nexec clang --target=%s --sysroot=/sysroot --rtlib=compiler-rt -fuse-ld=lld --unwindlib=none -Wno-unused-command-line-argument "$@"\n' \
+RUN printf '#!/bin/sh\nexec clang --target=%s --sysroot=/sysroot -fuse-ld=lld --unwindlib=none -Wno-unused-command-line-argument "$@"\n' \
         "${TARGET}" > /usr/local/bin/cc-${TARGET} && \
     chmod +x /usr/local/bin/cc-${TARGET} && \
-    printf '#!/bin/sh\nexec clang++ --target=%s --sysroot=/sysroot --rtlib=compiler-rt -fuse-ld=lld --unwindlib=none -Wno-unused-command-line-argument "$@"\n' \
+    printf '#!/bin/sh\nexec clang++ --target=%s --sysroot=/sysroot -fuse-ld=lld --unwindlib=none -Wno-unused-command-line-argument "$@"\n' \
         "${TARGET}" > /usr/local/bin/cxx-${TARGET} && \
     chmod +x /usr/local/bin/cxx-${TARGET}
 

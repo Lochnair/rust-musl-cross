@@ -43,8 +43,8 @@ ARG TARGET=x86_64-unknown-linux-musl
 # The Alpine architecture name used by apk (e.g. x86_64, aarch64, armv7, etc.)
 ARG APK_ARCH=x86_64
 
-# The Clang target triple (e.g. x86_64-linux-musl, aarch64-linux-musl, etc.)
-ARG CLANG_TARGET=x86_64-linux-musl
+# The Clang target triple (e.g. x86_64-alpine-linux-musl, aarch64-alpine-linux-musl, etc.)
+ARG CLANG_TARGET=x86_64-alpine-linux-musl
 
 # Create target sysroot using Alpine packages.
 # This gives us musl-libc, headers, and common libraries for the target arch.
@@ -61,17 +61,20 @@ RUN mkdir -p /sysroot/etc/apk && \
         musl-dev \
         zlib-dev \
         zlib-static && \
-    # Place target arch's compiler-rt where host clang looks for it
+    # Place target arch's compiler-rt where host clang/lld looks for it.
+    # lld resolves the compiler-rt path from the Rust TARGET triple (e.g.
+    # aarch64-unknown-linux-musl), NOT the Alpine CLANG_TARGET triple, so we
+    # copy into a directory named after TARGET, not CLANG_TARGET.
     cp -a /sysroot$(clang --print-resource-dir)/lib/${CLANG_TARGET} \
-          $(clang --print-resource-dir)/lib/
+          $(clang --print-resource-dir)/lib/${TARGET}
 
 # Create Clang wrapper scripts for C/C++ cross-compilation.
 # These are used as the linker by Cargo, and as CC/CXX for -sys crates.
 # --unwindlib=none: Rust provides its own unwinding via libunwind
-RUN printf '#!/bin/sh\nexec clang --target=%s --sysroot=/sysroot --rtlib=compiler-rt -fuse-ld=lld --unwindlib=none "$@"\n' \
+RUN printf '#!/bin/sh\nexec clang --target=%s --sysroot=/sysroot --rtlib=compiler-rt -fuse-ld=lld --unwindlib=none -Wno-unused-command-line-argument "$@"\n' \
         "${CLANG_TARGET}" > /usr/local/bin/cc-${TARGET} && \
     chmod +x /usr/local/bin/cc-${TARGET} && \
-    printf '#!/bin/sh\nexec clang++ --target=%s --sysroot=/sysroot --rtlib=compiler-rt  -fuse-ld=lld --unwindlib=none "$@"\n' \
+    printf '#!/bin/sh\nexec clang++ --target=%s --sysroot=/sysroot --rtlib=compiler-rt -fuse-ld=lld --unwindlib=none -Wno-unused-command-line-argument "$@"\n' \
         "${CLANG_TARGET}" > /usr/local/bin/cxx-${TARGET} && \
     chmod +x /usr/local/bin/cxx-${TARGET}
 

@@ -61,25 +61,24 @@ RUN mkdir -p /sysroot/etc/apk && \
         musl-dev \
         zlib-dev \
         zlib-static && \
-    # Place target arch's compiler-rt where host clang/lld looks for it.
+    # Expose target arch's compiler-rt to the host clang/lld.
     # lld resolves the compiler-rt path from the Rust TARGET triple (e.g.
-    # aarch64-unknown-linux-musl), NOT the Alpine CLANG_TARGET triple, so we
-    # copy into a directory named after TARGET, not CLANG_TARGET.
-    # Create dest explicitly then copy contents (src/.) so cp never has to
-    # mkdir the dest itself — avoids BusyBox cp ambiguity with new dest paths.
+    # aarch64-unknown-linux-musl), but the files live under the Alpine
+    # CLANG_TARGET triple in the sysroot (e.g. aarch64-alpine-linux-musl).
+    # A symlink bridges the two: no copying, no BusyBox cp quirks.
     RESOURCE_DIR=$(clang --print-resource-dir) && \
-    mkdir -p "${RESOURCE_DIR}/lib/${TARGET}" && \
-    cp -a "/sysroot${RESOURCE_DIR}/lib/${CLANG_TARGET}/." \
-          "${RESOURCE_DIR}/lib/${TARGET}/"
+    mkdir -p "${RESOURCE_DIR}/lib" && \
+    ln -sf "/sysroot${RESOURCE_DIR}/lib/${CLANG_TARGET}" \
+           "${RESOURCE_DIR}/lib/${TARGET}"
 
 # Create Clang wrapper scripts for C/C++ cross-compilation.
 # These are used as the linker by Cargo, and as CC/CXX for -sys crates.
 # --unwindlib=none: Rust provides its own unwinding via libunwind
 RUN printf '#!/bin/sh\nexec clang --target=%s --sysroot=/sysroot --rtlib=compiler-rt -fuse-ld=lld --unwindlib=none -Wno-unused-command-line-argument "$@"\n' \
-        "${CLANG_TARGET}" > /usr/local/bin/cc-${TARGET} && \
+        "${TARGET}" > /usr/local/bin/cc-${TARGET} && \
     chmod +x /usr/local/bin/cc-${TARGET} && \
     printf '#!/bin/sh\nexec clang++ --target=%s --sysroot=/sysroot --rtlib=compiler-rt -fuse-ld=lld --unwindlib=none -Wno-unused-command-line-argument "$@"\n' \
-        "${CLANG_TARGET}" > /usr/local/bin/cxx-${TARGET} && \
+        "${TARGET}" > /usr/local/bin/cxx-${TARGET} && \
     chmod +x /usr/local/bin/cxx-${TARGET}
 
 ENV TARGET_CC=cc-${TARGET}

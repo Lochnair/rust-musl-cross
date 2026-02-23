@@ -60,7 +60,7 @@ RUN mkdir -p /sysroot/etc/apk && \
         luajit-dev \
         musl-dev \
         zlib-dev \
-        zlib-static && \
+        zlib-static
 
 # Create Clang wrapper scripts for C/C++ cross-compilation.
 # These are used as the linker by Cargo, and as CC/CXX for -sys crates.

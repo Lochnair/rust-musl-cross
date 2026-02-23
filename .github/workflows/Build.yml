@@ -112,31 +112,6 @@ jobs:
           APK_ARCH: armv7
           CLANG_TARGET: armv7-alpine-linux-musleabihf
           TOOLCHAIN: stable
-        - IMAGE_TAG: arm-musleabihf
-          TARGET: arm-unknown-linux-musleabihf
-          APK_ARCH: armhf
-          CLANG_TARGET: armv6-alpine-linux-musleabihf
-          TOOLCHAIN: stable
-        - IMAGE_TAG: powerpc64le-musl
-          TARGET: powerpc64le-unknown-linux-musl
-          APK_ARCH: ppc64le
-          CLANG_TARGET: powerpc64le-alpine-linux-musl
-          TOOLCHAIN: stable
-        - IMAGE_TAG: riscv64gc-musl
-          TARGET: riscv64gc-unknown-linux-musl
-          APK_ARCH: riscv64
-          CLANG_TARGET: riscv64-alpine-linux-musl
-          TOOLCHAIN: stable
-        - IMAGE_TAG: loongarch64-musl
-          TARGET: loongarch64-unknown-linux-musl
-          APK_ARCH: loongarch64
-          CLANG_TARGET: loongarch64-alpine-linux-musl
-          TOOLCHAIN: stable
-        - IMAGE_TAG: s390x-musl
-          TARGET: s390x-unknown-linux-musl
-          APK_ARCH: s390x
-          CLANG_TARGET: s390x-alpine-linux-musl
-          TOOLCHAIN: stable
         # --- Tier 1/2 targets (nightly) ---
         - IMAGE_TAG: nightly-x86_64-musl
           TARGET: x86_64-unknown-linux-musl
@@ -157,31 +132,6 @@ jobs:
           TARGET: armv7-unknown-linux-musleabihf
           APK_ARCH: armv7
           CLANG_TARGET: armv7-alpine-linux-musleabihf
-          TOOLCHAIN: nightly
-        - IMAGE_TAG: nightly-arm-musleabihf
-          TARGET: arm-unknown-linux-musleabihf
-          APK_ARCH: armhf
-          CLANG_TARGET: armv6-alpine-linux-musleabihf
-          TOOLCHAIN: nightly
-        - IMAGE_TAG: nightly-powerpc64le-musl
-          TARGET: powerpc64le-unknown-linux-musl
-          APK_ARCH: ppc64le
-          CLANG_TARGET: powerpc64le-alpine-linux-musl
-          TOOLCHAIN: nightly
-        - IMAGE_TAG: nightly-riscv64gc-musl
-          TARGET: riscv64gc-unknown-linux-musl
-          APK_ARCH: riscv64
-          CLANG_TARGET: riscv64-alpine-linux-musl
-          TOOLCHAIN: nightly
-        - IMAGE_TAG: nightly-loongarch64-musl
-          TARGET: loongarch64-unknown-linux-musl
-          APK_ARCH: loongarch64
-          CLANG_TARGET: loongarch64-alpine-linux-musl
-          TOOLCHAIN: nightly
-        - IMAGE_TAG: nightly-s390x-musl
-          TARGET: s390x-unknown-linux-musl
-          APK_ARCH: s390x
-          CLANG_TARGET: s390x-alpine-linux-musl
           TOOLCHAIN: nightly
 
   build:

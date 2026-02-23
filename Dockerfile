@@ -22,6 +22,7 @@ RUN apk add --no-cache \
     bison \
     clang \
     lld \
+    llvm \
     llvm-dev \
     clang-dev \
     clang-static \
@@ -62,10 +63,10 @@ RUN mkdir -p /sysroot/etc/apk && \
 # Create Clang wrapper scripts for C/C++ cross-compilation.
 # These are used as the linker by Cargo, and as CC/CXX for -sys crates.
 # --unwindlib=none: Rust provides its own unwinding via libunwind
-RUN printf '#!/bin/sh\nexec clang --target=%s --sysroot=/sysroot -fuse-ld=lld --unwindlib=none "$@"\n' \
+RUN printf '#!/bin/sh\nexec clang --target=%s --sysroot=/sysroot --gcc-toolchain=/sysroot/usr -fuse-ld=lld --unwindlib=none "$@"\n' \
         "${CLANG_TARGET}" > /usr/local/bin/cc-${TARGET} && \
     chmod +x /usr/local/bin/cc-${TARGET} && \
-    printf '#!/bin/sh\nexec clang++ --target=%s --sysroot=/sysroot -fuse-ld=lld --unwindlib=none "$@"\n' \
+    printf '#!/bin/sh\nexec clang++ --target=%s --sysroot=/sysroot --gcc-toolchain=/sysroot/usr -fuse-ld=lld --unwindlib=none "$@"\n' \
         "${CLANG_TARGET}" > /usr/local/bin/cxx-${TARGET} && \
     chmod +x /usr/local/bin/cxx-${TARGET}
 

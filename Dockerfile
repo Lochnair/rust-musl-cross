@@ -65,8 +65,12 @@ RUN mkdir -p /sysroot/etc/apk && \
     # lld resolves the compiler-rt path from the Rust TARGET triple (e.g.
     # aarch64-unknown-linux-musl), NOT the Alpine CLANG_TARGET triple, so we
     # copy into a directory named after TARGET, not CLANG_TARGET.
-    cp -a /sysroot$(clang --print-resource-dir)/lib/${CLANG_TARGET} \
-          $(clang --print-resource-dir)/lib/${TARGET}
+    # Create dest explicitly then copy contents (src/.) so cp never has to
+    # mkdir the dest itself — avoids BusyBox cp ambiguity with new dest paths.
+    RESOURCE_DIR=$(clang --print-resource-dir) && \
+    mkdir -p "${RESOURCE_DIR}/lib/${TARGET}" && \
+    cp -a "/sysroot${RESOURCE_DIR}/lib/${CLANG_TARGET}/." \
+          "${RESOURCE_DIR}/lib/${TARGET}/"
 
 # Create Clang wrapper scripts for C/C++ cross-compilation.
 # These are used as the linker by Cargo, and as CC/CXX for -sys crates.

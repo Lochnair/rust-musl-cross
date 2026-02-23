@@ -55,18 +55,20 @@ RUN mkdir -p /sysroot/etc/apk && \
     echo "https://dl-cdn.alpinelinux.org/alpine/v3.23/community" >> /sysroot/etc/apk/repositories && \
     apk --arch ${APK_ARCH} --root /sysroot --initdb --no-scripts \
         --allow-untrusted add \
+        compiler-rt \
+        lua5.1-dev \
+        luajit-dev \
         musl-dev \
-        gcc \
         zlib-dev \
         zlib-static
 
 # Create Clang wrapper scripts for C/C++ cross-compilation.
 # These are used as the linker by Cargo, and as CC/CXX for -sys crates.
 # --unwindlib=none: Rust provides its own unwinding via libunwind
-RUN printf '#!/bin/sh\nexec clang --target=%s --sysroot=/sysroot --gcc-toolchain=/sysroot/usr -fuse-ld=lld --unwindlib=none "$@"\n' \
+RUN printf '#!/bin/sh\nexec clang --target=%s --sysroot=/sysroot --rtlib=compiler-rt -fuse-ld=lld --unwindlib=none "$@"\n' \
         "${CLANG_TARGET}" > /usr/local/bin/cc-${TARGET} && \
     chmod +x /usr/local/bin/cc-${TARGET} && \
-    printf '#!/bin/sh\nexec clang++ --target=%s --sysroot=/sysroot --gcc-toolchain=/sysroot/usr -fuse-ld=lld --unwindlib=none "$@"\n' \
+    printf '#!/bin/sh\nexec clang++ --target=%s --sysroot=/sysroot --rtlib=compiler-rt  -fuse-ld=lld --unwindlib=none "$@"\n' \
         "${CLANG_TARGET}" > /usr/local/bin/cxx-${TARGET} && \
     chmod +x /usr/local/bin/cxx-${TARGET}
 

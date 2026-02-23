@@ -197,6 +197,8 @@ jobs:
     env: ${{ matrix.env }}
     steps:
       - uses: actions/checkout@v6.0.2
+      - name: Set lowercase owner
+        run: echo "OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
       - name: Login to DockerHub
         if: ${{ github.repository_owner == 'rust-cross' && github.event_name != 'pull_request' }}
         uses: docker/login-action@v3
@@ -222,25 +224,25 @@ jobs:
             APK_ARCH=${{ matrix.env.APK_ARCH }}
             CLANG_TARGET=${{ matrix.env.CLANG_TARGET }}
             TOOLCHAIN=${{ matrix.env.TOOLCHAIN }}
-          tags: ghcr.io/${{ github.repository_owner }}/rust-musl-cross:${{ matrix.env.IMAGE_TAG }}-${{ matrix.os.arch }}
+          tags: ghcr.io/${{ env.OWNER }}/rust-musl-cross:${{ matrix.env.IMAGE_TAG }}-${{ matrix.os.arch }}
           no-cache: ${{ github.event.inputs.no_cache == 'yes' }}
           context: .
           load: true
-          cache-from: type=registry,ref=ghcr.io/${{ github.repository_owner }}/rust-musl-cross:buildcache-${{ matrix.env.IMAGE_TAG }}-${{ matrix.os.arch }}
-          cache-to: type=registry,ref=ghcr.io/${{ github.repository_owner }}/rust-musl-cross:buildcache-${{ matrix.env.IMAGE_TAG }}-${{ matrix.os.arch }},mode=max
+          cache-from: type=registry,ref=ghcr.io/${{ env.OWNER }}/rust-musl-cross:buildcache-${{ matrix.env.IMAGE_TAG }}-${{ matrix.os.arch }}
+          cache-to: type=registry,ref=ghcr.io/${{ env.OWNER }}/rust-musl-cross:buildcache-${{ matrix.env.IMAGE_TAG }}-${{ matrix.os.arch }},mode=max
       - name: Test Docker cargo build
         if: ${{ !startsWith(matrix.env.TARGET, 's390x') }}
         run: |
           docker run --rm \
             -v "$(pwd)/tests":/home/rust/src \
-            ghcr.io/${{ github.repository_owner }}/rust-musl-cross:$IMAGE_TAG-${{ matrix.os.arch }} bash -c "cargo build"
+            ghcr.io/$OWNER/rust-musl-cross:$IMAGE_TAG-${{ matrix.os.arch }} bash -c "cargo build"
       - name: Test Docker cargo build (s390x)
         if: ${{ startsWith(matrix.env.TARGET, 's390x') }}
         run: |
           docker run --rm \
             -v "$(pwd)/tests":/home/rust/src \
             -e CFLAGS="-march=z10 -mzarch" \
-            ghcr.io/${{ github.repository_owner }}/rust-musl-cross:$IMAGE_TAG-${{ matrix.os.arch }} bash -c "cargo build"
+            ghcr.io/$OWNER/rust-musl-cross:$IMAGE_TAG-${{ matrix.os.arch }} bash -c "cargo build"
       - name: Build and push multiarch image
         if: ${{ github.event_name != 'pull_request' }}
         env:
@@ -248,22 +250,22 @@ jobs:
         run: |
           set -e
 
-          docker push ghcr.io/${{ github.repository_owner }}/rust-musl-cross:$IMAGE_TAG-${{ matrix.os.arch }}
+          docker push ghcr.io/$OWNER/rust-musl-cross:$IMAGE_TAG-${{ matrix.os.arch }}
           curl -sqL -o manifest-tool https://github.com/estesp/manifest-tool/releases/download/v1.0.3/manifest-tool-linux-${{ matrix.os.arch }}
           chmod +x manifest-tool
 
-          echo "image: ghcr.io/${{ github.repository_owner }}/rust-musl-cross:$IMAGE_TAG
+          echo "image: ghcr.io/$OWNER/rust-musl-cross:$IMAGE_TAG
           manifests:" > ghcr-manifest.yaml
 
-          if docker manifest inspect ghcr.io/${{ github.repository_owner }}/rust-musl-cross:$IMAGE_TAG-amd64 > /dev/null; then
-            echo "  - image: ghcr.io/${{ github.repository_owner }}/rust-musl-cross:$IMAGE_TAG-amd64
+          if docker manifest inspect ghcr.io/$OWNER/rust-musl-cross:$IMAGE_TAG-amd64 > /dev/null; then
+            echo "  - image: ghcr.io/$OWNER/rust-musl-cross:$IMAGE_TAG-amd64
               platform:
                 architecture: amd64
                 os: linux" >> ghcr-manifest.yaml
           fi
 
-          if docker manifest inspect ghcr.io/${{ github.repository_owner }}/rust-musl-cross:$IMAGE_TAG-arm64 > /dev/null; then
-            echo "  - image: ghcr.io/${{ github.repository_owner }}/rust-musl-cross:$IMAGE_TAG-arm64
+          if docker manifest inspect ghcr.io/$OWNER/rust-musl-cross:$IMAGE_TAG-arm64 > /dev/null; then
+            echo "  - image: ghcr.io/$OWNER/rust-musl-cross:$IMAGE_TAG-arm64
               platform:
                 architecture: arm64
                 os: linux" >> ghcr-manifest.yaml
@@ -272,7 +274,7 @@ jobs:
           cat ghcr-manifest.yaml
           ./manifest-tool push from-spec ghcr-manifest.yaml
 
-          echo "image: ghcr.io/${{ github.repository_owner }}/rust-musl-cross:$TARGET" > ghcr-manifest-target.yaml
+          echo "image: ghcr.io/$OWNER/rust-musl-cross:$TARGET" > ghcr-manifest-target.yaml
           sed -n '1d;p' ghcr-manifest.yaml >> ghcr-manifest-target.yaml
           ./manifest-tool push from-spec ghcr-manifest-target.yaml
       - name: Sync images to Docker Hub
@@ -285,16 +287,16 @@ jobs:
           echo "image: ${{ secrets.DOCKER_USERNAME }}/rust-musl-cross:$IMAGE_TAG
           manifests:" > dockerhub-manifest.yaml
 
-          if docker manifest inspect ghcr.io/${{ github.repository_owner }}/rust-musl-cross:$IMAGE_TAG-amd64 > /dev/null; then
-            docker run --rm quay.io/skopeo/stable:latest copy --src-creds ${{ github.repository_owner }}:${{ secrets.GITHUB_TOKEN }} --dest-creds ${{ secrets.DOCKER_USERNAME }}:${{ secrets.DOCKER_PASSWORD }} --retry-times 3 docker://ghcr.io/${{ github.repository_owner }}/rust-musl-cross:$IMAGE_TAG-amd64 docker://${{ secrets.DOCKER_USERNAME }}/rust-musl-cross:$IMAGE_TAG-amd64
+          if docker manifest inspect ghcr.io/$OWNER/rust-musl-cross:$IMAGE_TAG-amd64 > /dev/null; then
+            docker run --rm quay.io/skopeo/stable:latest copy --src-creds ${{ github.repository_owner }}:${{ secrets.GITHUB_TOKEN }} --dest-creds ${{ secrets.DOCKER_USERNAME }}:${{ secrets.DOCKER_PASSWORD }} --retry-times 3 docker://ghcr.io/$OWNER/rust-musl-cross:$IMAGE_TAG-amd64 docker://${{ secrets.DOCKER_USERNAME }}/rust-musl-cross:$IMAGE_TAG-amd64
             echo "  - image: ${{ secrets.DOCKER_USERNAME }}/rust-musl-cross:$IMAGE_TAG-amd64
               platform:
                 architecture: amd64
                 os: linux" >> dockerhub-manifest.yaml
           fi
 
-          if docker manifest inspect ghcr.io/${{ github.repository_owner }}/rust-musl-cross:$IMAGE_TAG-arm64 > /dev/null; then
-            docker run --rm quay.io/skopeo/stable:latest copy --src-creds ${{ github.repository_owner }}:${{ secrets.GITHUB_TOKEN }} --dest-creds ${{ secrets.DOCKER_USERNAME }}:${{ secrets.DOCKER_PASSWORD }} --retry-times 3 docker://ghcr.io/${{ github.repository_owner }}/rust-musl-cross:$IMAGE_TAG-arm64 docker://${{ secrets.DOCKER_USERNAME }}/rust-musl-cross:$IMAGE_TAG-arm64
+          if docker manifest inspect ghcr.io/$OWNER/rust-musl-cross:$IMAGE_TAG-arm64 > /dev/null; then
+            docker run --rm quay.io/skopeo/stable:latest copy --src-creds ${{ github.repository_owner }}:${{ secrets.GITHUB_TOKEN }} --dest-creds ${{ secrets.DOCKER_USERNAME }}:${{ secrets.DOCKER_PASSWORD }} --retry-times 3 docker://ghcr.io/$OWNER/rust-musl-cross:$IMAGE_TAG-arm64 docker://${{ secrets.DOCKER_USERNAME }}/rust-musl-cross:$IMAGE_TAG-arm64
             echo "  - image: ${{ secrets.DOCKER_USERNAME }}/rust-musl-cross:$IMAGE_TAG-arm64
               platform:
                 architecture: arm64

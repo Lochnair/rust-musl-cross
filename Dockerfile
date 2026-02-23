@@ -60,7 +60,15 @@ RUN mkdir -p /sysroot/etc/apk && \
         luajit-dev \
         musl-dev \
         zlib-dev \
-        zlib-static
+        zlib-static && \
+    # If TARGET arch differs from CLANG_TARGET arch (e.g. i686 vs i586),
+    # clang's GCC detection won't find the installation. Alias it.
+    TARGET_ARCH=$(echo "${TARGET}" | cut -d- -f1) && \
+    CLANG_ARCH=$(echo "${CLANG_TARGET}" | cut -d- -f1) && \
+    if [ "${TARGET_ARCH}" != "${CLANG_ARCH}" ] && \
+       [ -d "/sysroot/usr/lib/gcc/${CLANG_TARGET}" ]; then \
+        ln -sf "${CLANG_TARGET}" "/sysroot/usr/lib/gcc/${TARGET_ARCH}-alpine-linux-musl"; \
+    fi
 
 # Create Clang wrapper scripts for C/C++ cross-compilation.
 # These are used as the linker by Cargo, and as CC/CXX for -sys crates.

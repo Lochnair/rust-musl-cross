@@ -60,24 +60,20 @@ RUN mkdir -p /sysroot/etc/apk && \
         luajit-dev \
         musl-dev \
         zlib-dev \
-        zlib-static && \
-    # If TARGET arch differs from CLANG_TARGET arch (e.g. i686 vs i586),
-    # clang's GCC detection won't find the installation. Alias it.
-    TARGET_ARCH=$(echo "${TARGET}" | cut -d- -f1) && \
-    CLANG_ARCH=$(echo "${CLANG_TARGET}" | cut -d- -f1) && \
-    if [ "${TARGET_ARCH}" != "${CLANG_ARCH}" ] && \
-       [ -d "/sysroot/usr/lib/gcc/${CLANG_TARGET}" ]; then \
-        ln -sf "${CLANG_TARGET}" "/sysroot/usr/lib/gcc/${TARGET_ARCH}-alpine-linux-musl"; \
-    fi
+        zlib-static
 
 # Create Clang wrapper scripts for C/C++ cross-compilation.
 # These are used as the linker by Cargo, and as CC/CXX for -sys crates.
+# --gcc-install-dir: points clang directly at the sysroot's GCC installation
+#   so it finds crtbeginS.o, crtendS.o, libgcc.a without relying on triple
+#   matching heuristics (which fail for i686 vs Alpine's i586).
 # --unwindlib=none: Rust provides its own unwinding via libunwind
-RUN printf '#!/bin/sh\nexec clang --target=%s --sysroot=/sysroot -fuse-ld=lld --unwindlib=none -Wno-unused-command-line-argument "$@"\n' \
-        "${TARGET}" > /usr/local/bin/cc-${TARGET} && \
+RUN GCC_INSTALL_DIR=$(ls -d /sysroot/usr/lib/gcc/${CLANG_TARGET}/*/ | head -1 | sed 's:/$::') && \
+    printf '#!/bin/sh\nexec clang --target=%s --sysroot=/sysroot --gcc-install-dir=%s -fuse-ld=lld --unwindlib=none -Wno-unused-command-line-argument "$@"\n' \
+        "${TARGET}" "${GCC_INSTALL_DIR}" > /usr/local/bin/cc-${TARGET} && \
     chmod +x /usr/local/bin/cc-${TARGET} && \
-    printf '#!/bin/sh\nexec clang++ --target=%s --sysroot=/sysroot -fuse-ld=lld --unwindlib=none -Wno-unused-command-line-argument "$@"\n' \
-        "${TARGET}" > /usr/local/bin/cxx-${TARGET} && \
+    printf '#!/bin/sh\nexec clang++ --target=%s --sysroot=/sysroot --gcc-install-dir=%s -fuse-ld=lld --unwindlib=none -Wno-unused-command-line-argument "$@"\n' \
+        "${TARGET}" "${GCC_INSTALL_DIR}" > /usr/local/bin/cxx-${TARGET} && \
     chmod +x /usr/local/bin/cxx-${TARGET}
 
 ENV TARGET_CC=cc-${TARGET}
